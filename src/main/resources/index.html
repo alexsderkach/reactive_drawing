@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        var ws, canvas, ctx, flag = false,
+            prevX = 0,
+            currX = 0,
+            prevY = 0,
+            currY = 0,
+            dot_flag = false;
+
+        var colorType = "black", lineWidth = 2;
+
+        function init() {
+            canvas = document.getElementById('can');
+            ctx = canvas.getContext("2d");
+            w = canvas.width;
+            h = canvas.height;
+
+            canvas.addEventListener("mousemove", function (e) {
+                findxy('move', e)
+            }, false);
+            canvas.addEventListener("mousedown", function (e) {
+                findxy('down', e)
+            }, false);
+            canvas.addEventListener("mouseup", function (e) {
+                findxy('up', e)
+            }, false);
+            canvas.addEventListener("mouseout", function (e) {
+                findxy('out', e)
+            }, false);
+
+            ws = new WebSocket("ws://localhost:8080/events");
+            ws.onmessage = function (evt) {
+                draw(evt.data);
+            };
+        }
+
+        function color(obj) {
+            colorType = obj.id;
+            console.log(colorType)
+        }
+
+        function notify(event) {
+            ws.send(JSON.stringify(event))
+        }
+
+        function draw(event) {
+            event = JSON.parse(event);
+            if (event.type == "erase") {
+                ctx.clearRect(0, 0, w, h);
+                document.getElementById("canvasimg").style.display = "none";
+            } else if (event.type == "dot") {
+                ctx.beginPath();
+                ctx.fillStyle = event.color;
+                ctx.fillRect(event.x, event.y, event.size, event.size);
+                ctx.closePath();
+            } else {
+                ctx.beginPath();
+                ctx.moveTo(event.prevX, event.prevY);
+                ctx.lineTo(event.currX, event.currY);
+                ctx.strokeStyle = event.color;
+                ctx.lineWidth = event.lineWidth;
+                ctx.stroke();
+                ctx.closePath();
+            }
+        }
+
+        function erase() {
+            var m = confirm("Want to clear");
+            if (m) {
+                notify({
+                    type: "erase"
+                });
+            }
+        }
+
+        function save() {
+            document.getElementById("canvasimg").style.border = "2px solid";
+            var dataURL = canvas.toDataURL();
+            document.getElementById("canvasimg").src = dataURL;
+            document.getElementById("canvasimg").style.display = "inline";
+        }
+
+        function findxy(res, e) {
+            if (res == 'down') {
+                prevX = currX;
+                prevY = currY;
+                currX = e.clientX - canvas.offsetLeft;
+                currY = e.clientY - canvas.offsetTop;
+
+                flag = true;
+                dot_flag = true;
+                if (dot_flag) {
+                    notify({
+                        type: "dot",
+                        x: currX,
+                        y: currY,
+                        color: colorType,
+                        size: lineWidth
+                    });
+                    dot_flag = false;
+                }
+            }
+            if (res == 'up' || res == "out") {
+                flag = false;
+            }
+            if (res == 'move') {
+                if (flag) {
+                    prevX = currX;
+                    prevY = currY;
+                    currX = e.clientX - canvas.offsetLeft;
+                    currY = e.clientY - canvas.offsetTop;
+                    notify({
+                        type: "line",
+                        prevX: prevX,
+                        prevY: prevY,
+                        currX: currX,
+                        currY: currY,
+                        color: colorType,
+                        lineWidth: lineWidth
+                    });
+                }
+            }
+        }
+        function setLineWidth(e) {
+            lineWidth = parseInt(e.value)
+        }
+    </script>
+    <style>
+        td {
+            width: 50px;
+            height: 50px;
+        }
+    </style>
+</head>
+<body onload="init()">
+<canvas id="can" width="400" height="400" style="border:2px solid;"></canvas>
+<table>
+    <tr>
+        <td style="background:green;" id="green" onclick="color(this)"></td>
+        <td style="background:blue;" id="blue" onclick="color(this)"></td>
+        <td style="background:red;" id="red" onclick="color(this)"></td>
+        <td style="background:yellow;" id="yellow" onclick="color(this)"></td>
+        <td style="background:orange;" id="orange" onclick="color(this)"></td>
+        <td style="background:black;" id="black" onclick="color(this)"></td>
+        <td style="background:white;border:2px solid;" id="white" onclick="color(this)"></td>
+    </tr>
+</table>
+<input type="text" value="2" id="lineSize" onchange="setLineWidth(this)">
+<input type="button" value="save" id="btn" size="30" onclick="save()">
+<input type="button" value="clear" id="clr" size="23" onclick="erase()">
+<img id="canvasimg" style="display:none;">
+</body>
+</html>
